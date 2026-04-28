@@ -10,8 +10,23 @@ def _connect() -> sqlite3.Connection:
     return sqlite3.connect(DB_PATH)
 
 
+def init_users_table(conn: sqlite3.Connection) -> None:
+    """Create users table and add user_id column to sessions if missing."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            email         TEXT    NOT NULL UNIQUE,
+            password_hash TEXT    NOT NULL,
+            created_at    TEXT    NOT NULL
+        )
+    """)
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
+    if "user_id" not in existing:
+        conn.execute("ALTER TABLE sessions ADD COLUMN user_id INTEGER REFERENCES users(id)")
+
+
 def init_db() -> None:
-    """Create DB and sessions table if they don't exist."""
+    """Create DB tables and run migrations if needed."""
     with _connect() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
@@ -25,6 +40,32 @@ def init_db() -> None:
                 feedback   TEXT    NOT NULL
             )
         """)
+        init_users_table(conn)
+
+
+def create_user(email: str, password_hash: str) -> int:
+    """Insert a new user and return their id. Raises ValueError on duplicate email."""
+    created_at = datetime.now(timezone.utc).isoformat()
+    try:
+        with _connect() as conn:
+            cursor = conn.execute(
+                "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+                (email, password_hash, created_at),
+            )
+            return cursor.lastrowid
+    except sqlite3.IntegrityError:
+        raise ValueError(f"Email already registered: {email}")
+
+
+def get_user_by_email(email: str) -> dict | None:
+    """Return {id, email, password_hash} for the user or None if not found."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, email, password_hash FROM users WHERE email = ?", (email,)
+        ).fetchone()
+    if row is None:
+        return None
+    return {"id": row[0], "email": row[1], "password_hash": row[2]}
 
 
 def save_session(
@@ -34,6 +75,7 @@ def save_session(
     code: str,
     score: int,
     feedback: str,
+    user_id: int | None = None,
 ) -> None:
     """Insert one completed session row."""
     if not (0 <= score <= 10):
@@ -43,25 +85,26 @@ def save_session(
     with _connect() as conn:
         conn.execute(
             """
-            INSERT INTO sessions (timestamp, topic, difficulty, question, code, score, feedback)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sessions (timestamp, topic, difficulty, question, code, score, feedback, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (timestamp, topic, difficulty, question, code, score, feedback),
+            (timestamp, topic, difficulty, question, code, score, feedback, user_id),
         )
 
 
-def get_recent_scores(topic: str, limit: int = 5) -> list[int]:
+def get_recent_scores(topic: str, limit: int = 5, user_id: int | None = None) -> list[int]:
     """Return the last `limit` scores for a topic, newest first."""
     with _connect() as conn:
-        rows = conn.execute(
-            """
-            SELECT score FROM sessions
-            WHERE topic = ?
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (topic, limit),
-        ).fetchall()
+        if user_id is not None:
+            rows = conn.execute(
+                "SELECT score FROM sessions WHERE topic = ? AND user_id = ? ORDER BY id DESC LIMIT ?",
+                (topic, user_id, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT score FROM sessions WHERE topic = ? ORDER BY id DESC LIMIT ?",
+                (topic, limit),
+            ).fetchall()
     return [row[0] for row in rows]
 
 
@@ -77,46 +120,73 @@ def compute_next_difficulty(scores: list[int], current: int) -> int:
     return current
 
 
-def _fetch_topic_stats(topic: str) -> dict:
+def _fetch_topic_stats(topic: str, user_id: int | None = None) -> dict:
     with _connect() as conn:
-        row = conn.execute(
-            """
-            SELECT COUNT(*), ROUND(AVG(score), 1), difficulty
-            FROM sessions
-            WHERE topic = ?
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            (topic,),
-        ).fetchone()
+        if user_id is not None:
+            row = conn.execute(
+                """
+                SELECT COUNT(*), ROUND(AVG(score), 1), difficulty
+                FROM sessions
+                WHERE topic = ? AND user_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (topic, user_id),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                """
+                SELECT COUNT(*), ROUND(AVG(score), 1), difficulty
+                FROM sessions
+                WHERE topic = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (topic,),
+            ).fetchone()
     count, avg_score, last_difficulty = row
     return {"topic": topic, "count": count, "avg_score": avg_score, "last_difficulty": last_difficulty}
 
 
-def _fetch_all_topic_stats() -> list[dict]:
+def _fetch_all_topic_stats(user_id: int | None = None) -> list[dict]:
     with _connect() as conn:
-        rows = conn.execute(
-            """
-            SELECT s.topic,
-                   COUNT(*) as count,
-                   ROUND(AVG(s.score), 1) as avg_score,
-                   (SELECT difficulty FROM sessions WHERE topic = s.topic ORDER BY id DESC LIMIT 1) as last_difficulty
-            FROM sessions s
-            GROUP BY s.topic
-            ORDER BY s.topic
-            """
-        ).fetchall()
+        if user_id is not None:
+            rows = conn.execute(
+                """
+                SELECT s.topic,
+                       COUNT(*) as count,
+                       ROUND(AVG(s.score), 1) as avg_score,
+                       (SELECT difficulty FROM sessions WHERE topic = s.topic AND user_id = ? ORDER BY id DESC LIMIT 1) as last_difficulty
+                FROM sessions s
+                WHERE s.user_id = ?
+                GROUP BY s.topic
+                ORDER BY s.topic
+                """,
+                (user_id, user_id),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT s.topic,
+                       COUNT(*) as count,
+                       ROUND(AVG(s.score), 1) as avg_score,
+                       (SELECT difficulty FROM sessions WHERE topic = s.topic ORDER BY id DESC LIMIT 1) as last_difficulty
+                FROM sessions s
+                GROUP BY s.topic
+                ORDER BY s.topic
+                """
+            ).fetchall()
     return [
         {"topic": r[0], "count": r[1], "avg_score": r[2], "last_difficulty": r[3]}
         for r in rows
     ]
 
 
-async def get_topic_stats(topic: str) -> dict:
+async def get_topic_stats(topic: str, user_id: int | None = None) -> dict:
     """Return {topic, count, avg_score, last_difficulty} for a single topic."""
-    return await asyncio.to_thread(_fetch_topic_stats, topic)
+    return await asyncio.to_thread(_fetch_topic_stats, topic, user_id)
 
 
-async def get_all_topic_stats() -> list[dict]:
+async def get_all_topic_stats(user_id: int | None = None) -> list[dict]:
     """Return per-topic stats for all topics that have at least one session."""
-    return await asyncio.to_thread(_fetch_all_topic_stats)
+    return await asyncio.to_thread(_fetch_all_topic_stats, user_id)
