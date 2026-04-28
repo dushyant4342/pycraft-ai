@@ -3,7 +3,7 @@ import streamlit as st
 from streamlit_ace import st_ace
 
 from llm import review_code, next_question
-from tracker import init_db, save_session, get_recent_scores
+from tracker import init_db, save_session, get_recent_scores, compute_next_difficulty, get_all_topic_stats
 
 st.set_page_config(page_title="PyCraft AI", layout="wide")
 
@@ -25,12 +25,7 @@ def init_session():
 
 def load_next_question():
     history = get_recent_scores(st.session_state.topic, limit=5)
-    if history:
-        avg = sum(history) / len(history)
-        if avg >= 8 and st.session_state.difficulty < 5:
-            st.session_state.difficulty += 1
-        elif avg < 5 and st.session_state.difficulty > 1:
-            st.session_state.difficulty -= 1
+    st.session_state.difficulty = compute_next_difficulty(history, st.session_state.difficulty)
 
     result = asyncio.run(
         next_question(st.session_state.topic, st.session_state.difficulty, history)
@@ -49,6 +44,15 @@ def main():
 
     st.title("PyCraft AI")
     st.caption(f"Topic: `{st.session_state.topic}` | Difficulty: {st.session_state.difficulty}/5")
+
+    stats = asyncio.run(get_all_topic_stats())
+    if stats:
+        st.subheader("Progress")
+        for row in stats:
+            st.markdown(
+                f"**{row['topic']}** — {row['count']} sessions | avg {row['avg_score']}/10 | difficulty {row['last_difficulty']}/5"
+            )
+
     st.divider()
 
     if st.session_state.question is None:
