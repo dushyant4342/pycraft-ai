@@ -3,7 +3,7 @@ description: Generate a commit message and PR description from current git state
 allowed-tools: Bash(git diff:*), Bash(git log:*), Bash(git status:*)
 ---
 
-Generate a commit message and PR description for the current changes.
+Generate a commit message and PR description for the current changes. Write this as short as possible.
 
 ## Steps
 
@@ -32,5 +32,5 @@ Types: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`
 
 ## Rules
 - Match the commit style from `git log` if a convention is already established.
-- Keep the commit message to one line; put detail in the PR body.
+- Keep the commit message to one line; put detail in very short the PR body.
 - Do not include untracked files that are clearly not part of the change.
