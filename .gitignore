@@ -1,0 +1,49 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+
+uploads/
+.venv/
+models/
+chroma_db/
+.legacy2/gen_report_allora.js
+gen_report.js
+.env
+openai_prompt_runner.py
+
+_legacy/**
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+node_modules/
+package-lock.json
+package.json
+generate_report.js
+#.claude/
+# Jupyter / IPython
+.ipynb_checkpoints
+
+# VS Code / IDE
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+
+# Local data / cache
+.cache/
+
