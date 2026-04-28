@@ -5,7 +5,7 @@ from openai import AsyncOpenAI
 
 load_dotenv()
 
-MODEL = "gpt-4o"
+MODEL = "gpt-4o-mini"
 TOPICS = ["strings", "lists", "dicts", "functions", "OOP", "comprehensions", "async"]
 
 _client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
@@ -23,7 +23,7 @@ async def next_question(topic: str, difficulty: int, history: list[int]) -> dict
             {
                 "role": "system",
                 "content": (
-                    "You are a Python coding tutor. Generate a single focused Python practice question. "
+                    "You are a Python coding tutor. Generate a single focused Python practice question with sample input & output. "
                     "Respond with JSON only: {\"question\": \"...\", \"topic\": \"...\", \"difficulty\": <int 1-5>}. "
                     f"Valid topics: {TOPICS}."
                 ),
@@ -51,7 +51,7 @@ async def review_code(question: str, code: str) -> dict:
     """Return {score: int 0-10, feedback: str} for the submitted solution."""
     response = await _client.chat.completions.create(
         model=MODEL,
-        max_tokens=1024,
+        max_tokens=512,
         response_format={"type": "json_object"},
         messages=[
             {
