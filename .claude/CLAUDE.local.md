@@ -1,0 +1,1 @@
+Concise responses only; no filler phrases; never use em dashes, always create specs file inside .claude/specs/.md 
