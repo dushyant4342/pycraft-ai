@@ -16,7 +16,8 @@
       "Bash(AGENTS_OBSERVE_LOG_LEVEL=trace echo '{\"hook_event_name\":\"UserPromptSubmit\",\"session_id\":\"test-123\",\"transcript_path\":\"/tmp/test\"}')",
       "Bash(curl -s -X POST http://127.0.0.1:4981/api/events -H 'Content-Type: application/json' -d '{\"hook_event_name\":\"UserPromptSubmit\",\"session_id\":\"test-123\",\"transcript_path\":\"/tmp/test\"}')",
       "Bash(bash --version)",
-      "Bash(docker exec *)"
+      "Bash(docker exec *)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('src/app.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
     ]
   }
 }

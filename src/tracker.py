@@ -118,7 +118,7 @@ def save_session(
 ) -> None:
     """Insert one completed session row."""
     if not (0 <= score <= 10):
-        raise ValueError(f"score must be 0-10, got {score}")
+        raise ValueError(f"score must be 0.0-10.0, got {score}")
 
     timestamp = datetime.now(timezone.utc).isoformat()
     with _connect() as conn:
@@ -245,3 +245,35 @@ async def get_topic_stats(topic: str, user_id: int | None = None) -> dict:
 async def get_all_topic_stats(user_id: int | None = None) -> list[dict]:
     """Return per-topic stats for all topics that have at least one session."""
     return await asyncio.to_thread(_fetch_all_topic_stats, user_id)
+
+
+def _fetch_session_history(
+    user_id: int, topic: str | None = None, limit: int = 50
+) -> list[dict]:
+    query = """
+        SELECT id, timestamp, topic, difficulty, score, code, feedback, question
+        FROM sessions
+        WHERE user_id = ?
+    """
+    params: list = [user_id]
+    if topic:
+        query += " AND topic = ?"
+        params.append(topic)
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+    with _connect() as conn:
+        rows = conn.execute(query, params).fetchall()
+    return [
+        {
+            "id": r[0], "timestamp": r[1], "topic": r[2], "difficulty": r[3],
+            "score": r[4], "code": r[5], "feedback": r[6], "question": r[7],
+        }
+        for r in rows
+    ]
+
+
+async def get_session_history(
+    user_id: int, topic: str | None = None, limit: int = 50
+) -> list[dict]:
+    """Return up to `limit` past sessions for a user, newest first. Filter by topic if given."""
+    return await asyncio.to_thread(_fetch_session_history, user_id, topic, limit)
