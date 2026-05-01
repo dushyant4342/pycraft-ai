@@ -6,7 +6,17 @@
       "Bash(.venv/Scripts/python -c ' *)",
       "Bash(.venv/Scripts/pip list *)",
       "Bash(npm install *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(node *)",
+      "Bash(python3 -m json.tool)",
+      "Read(//c/Users/dushyant/.claude/**)",
+      "Bash(kill %1)",
+      "Bash(bash \"C:/Users/dushyant/.claude/plugins/cache/agents-observe/agents-observe/0.9.2/hooks/scripts/hook.sh\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(AGENTS_OBSERVE_LOG_LEVEL=trace echo '{\"hook_event_name\":\"UserPromptSubmit\",\"session_id\":\"test-123\",\"transcript_path\":\"/tmp/test\"}')",
+      "Bash(curl -s -X POST http://127.0.0.1:4981/api/events -H 'Content-Type: application/json' -d '{\"hook_event_name\":\"UserPromptSubmit\",\"session_id\":\"test-123\",\"transcript_path\":\"/tmp/test\"}')",
+      "Bash(bash --version)",
+      "Bash(docker exec *)"
     ]
   }
 }

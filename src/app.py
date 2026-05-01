@@ -1,10 +1,19 @@
 import asyncio
+import logging
+import random
 import streamlit as st
 from streamlit_ace import st_ace
 
 from auth import login_ui
 from llm import review_code, next_question
-from tracker import init_db, save_session, get_recent_scores, compute_next_difficulty, get_all_topic_stats
+from tracker import init_db, save_session, get_recent_scores, compute_next_difficulty, get_all_topic_stats, get_topic_stats
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger("pycraft")
 
 st.set_page_config(page_title="PyCraft AI", layout="wide", page_icon="⚡")
 
@@ -17,6 +26,8 @@ TOPIC_ICONS = {
     "comprehensions": "🔁",
     "async": "⚡",
 }
+
+TOPICS = ["strings", "lists", "dicts", "functions", "OOP", "comprehensions", "async"]
 
 
 def inject_css() -> None:
@@ -266,6 +277,30 @@ def inject_css() -> None:
             transform: none !important;
             box-shadow: none !important;
         }
+
+        /* ── Topic picker pills ────────────────────────── */
+        div[data-testid="stHorizontalBlock"] .stButton > button {
+            background: #1e293b !important;
+            border: 1px solid #334155 !important;
+            color: #94a3b8 !important;
+            border-radius: 9999px !important;
+            font-size: 0.82rem !important;
+            padding: 0.35rem 0.9rem !important;
+            box-shadow: none !important;
+            font-weight: 500 !important;
+        }
+        div[data-testid="stHorizontalBlock"] .stButton > button:hover {
+            border-color: #6366f1 !important;
+            color: #e2e8f0 !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+        .pill-selected > button {
+            background: linear-gradient(135deg,#6366f1,#818cf8) !important;
+            border-color: transparent !important;
+            color: #fff !important;
+            font-weight: 600 !important;
+        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -318,6 +353,7 @@ def init_session() -> None:
         "feedback": None,
         "score": None,
         "submitted": False,
+        "topic_locked": False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -326,17 +362,29 @@ def init_session() -> None:
 
 def load_next_question() -> None:
     user_id = st.session_state.user_id
+    topic = st.session_state.topic
+    if not topic:
+        topic = random.choice(TOPICS)
+        st.session_state.topic = topic
+        log.info("random topic selected: %s", topic)
+    stats = asyncio.run(get_topic_stats(topic, user_id=user_id))
+    if stats["count"] > 0:
+        st.session_state.difficulty = stats["last_difficulty"]
+        log.info("difficulty seeded from history: topic=%s difficulty=%d (sessions=%d)", topic, stats["last_difficulty"], stats["count"])
     history = get_recent_scores(st.session_state.topic, limit=5, user_id=user_id)
     st.session_state.difficulty = compute_next_difficulty(history, st.session_state.difficulty)
+    log.info("generating question: topic=%s difficulty=%d history=%s", st.session_state.topic, st.session_state.difficulty, history)
     result = asyncio.run(
         next_question(st.session_state.topic, st.session_state.difficulty, history)
     )
     st.session_state.question = result["question"]
     st.session_state.topic = result["topic"]
     st.session_state.difficulty = result["difficulty"]
+    log.info("question ready: topic=%s difficulty=%d", result["topic"], result["difficulty"])
     st.session_state.feedback = None
     st.session_state.score = None
     st.session_state.submitted = False
+    st.session_state.topic_locked = True
 
 
 def render_header() -> None:
@@ -351,6 +399,7 @@ def render_header() -> None:
         st.write("")
         st.markdown('<div class="logout-btn">', unsafe_allow_html=True)
         if st.button("Logout", key="logout_btn"):
+            log.info("user logged out: user_id=%s", st.session_state.get("user_id"))
             st.session_state.clear()
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -390,6 +439,32 @@ def render_progress(stats: list[dict]) -> None:
     card(rows_html)
 
 
+def render_topic_picker() -> None:
+    current = st.session_state.get("topic", "lists")
+    st.markdown(
+        "<p style='text-align:center;color:#64748b;font-size:0.85rem;margin-bottom:0.5rem;'>Choose a topic:</p>",
+        unsafe_allow_html=True,
+    )
+    cols = st.columns(len(TOPICS) + 1)
+    for i, topic in enumerate(TOPICS):
+        with cols[i]:
+            if current == topic:
+                st.markdown('<div class="pill-selected">', unsafe_allow_html=True)
+            if st.button(f"{TOPIC_ICONS.get(topic, '')} {topic}", key=f"pill_{topic}", use_container_width=True):
+                st.session_state.topic = topic
+                st.rerun()
+            if current == topic:
+                st.markdown("</div>", unsafe_allow_html=True)
+    with cols[-1]:
+        if current == "":
+            st.markdown('<div class="pill-selected">', unsafe_allow_html=True)
+        if st.button("🎲 Random", key="pill_random", use_container_width=True):
+            st.session_state.topic = ""
+            st.rerun()
+        if current == "":
+            st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_start_screen() -> None:
     st.markdown("<br>", unsafe_allow_html=True)
     card(
@@ -398,6 +473,8 @@ def render_start_screen() -> None:
         '<p style="text-align:center;color:#64748b;font-size:0.9rem;margin:0;">Pick a topic or let AI choose for you.</p>',
         accent=True,
     )
+    if not st.session_state.get("topic_locked", False):
+        render_topic_picker()
     col_a, col_b, col_c = st.columns([1, 2, 1])
     with col_b:
         if st.button("Start Practicing", use_container_width=True):
@@ -445,8 +522,11 @@ def render_result() -> None:
     col_a, col_b, col_c = st.columns([1, 2, 1])
     with col_b:
         if st.button("Next Question →", use_container_width=True):
-            with st.spinner("Generating next question..."):
-                load_next_question()
+            st.session_state.question = None
+            st.session_state.topic_locked = False
+            st.session_state.feedback = None
+            st.session_state.score = None
+            st.session_state.submitted = False
             st.rerun()
 
 
@@ -457,6 +537,10 @@ def main() -> None:
     if not st.session_state.get("user_id"):
         login_ui()
         st.stop()
+
+    if not st.session_state.get("_logged_in_logged"):
+        log.info("user session started: user_id=%s", st.session_state.user_id)
+        st.session_state["_logged_in_logged"] = True
 
     init_session()
     render_header()
@@ -482,11 +566,13 @@ def main() -> None:
         )
 
     if submit and code.strip():
+        log.info("code submitted: topic=%s difficulty=%d", st.session_state.topic, st.session_state.difficulty)
         with st.spinner("AI is reviewing your code..."):
             result = asyncio.run(review_code(st.session_state.question, code))
         st.session_state.score = result["score"]
         st.session_state.feedback = result["feedback"]
         st.session_state.submitted = True
+        log.info("review complete: score=%d/10 topic=%s", result["score"], st.session_state.topic)
         save_session(
             topic=st.session_state.topic,
             difficulty=st.session_state.difficulty,
