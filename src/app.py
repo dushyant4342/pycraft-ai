@@ -53,7 +53,7 @@ def inject_css() -> None:
         #MainMenu, footer, header { visibility: hidden; }
         [data-testid="stToolbar"] { display: none; }
         [data-testid="stDecoration"] { display: none; }
-        .block-container { padding-top: 2rem !important; max-width: 900px !important; }
+        .block-container { padding-top: 2rem !important; max-width: 1280px !important; }
 
         /* ── Typography ────────────────────────────────── */
         h1, h2, h3 { font-family: 'Inter', sans-serif; }
@@ -247,15 +247,16 @@ def inject_css() -> None:
         .stTabs [data-baseweb="tab-list"] {
             background: #161925;
             border-radius: 10px;
-            padding: 0.25rem;
+            padding: 0.3rem;
             border: 1px solid #252840;
-            gap: 0.25rem;
+            gap: 0.5rem;
         }
         .stTabs [data-baseweb="tab"] {
             border-radius: 8px !important;
             color: #64748b !important;
             font-weight: 600 !important;
             font-size: 0.88rem !important;
+            padding: 0.4rem 1.1rem !important;
         }
         .stTabs [aria-selected="true"] {
             background: #7c6af7 !important;
@@ -281,24 +282,30 @@ def inject_css() -> None:
         .greeting-sep { color: #252840; margin: 0 0.5rem; }
         .greeting-sub { color: #475569; }
 
-        /* ── Sign-out chip (sibling selector targeting) ─ */
+        /* ── Sign-out chip ─────────────────────────────── */
         div:has(.signout-anchor) ~ div .stButton > button {
             background: transparent !important;
-            color: #475569 !important;
-            border: 1px solid #1e2235 !important;
+            color: #64748b !important;
+            border: 1px solid #252840 !important;
             border-radius: 999px !important;
-            font-size: 0.72rem !important;
+            font-size: 0.75rem !important;
             font-weight: 500 !important;
-            padding: 0.2rem 0.75rem !important;
-            height: auto !important;
+            padding: 0.3rem 1rem !important;
+            height: 2rem !important;
+            min-width: 80px !important;
+            width: 100% !important;
             box-shadow: none !important;
-            letter-spacing: 0.02em !important;
+            letter-spacing: 0.03em !important;
             white-space: nowrap !important;
-            margin-top: 1.4rem !important;
+            line-height: 1 !important;
+            margin-top: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
         div:has(.signout-anchor) ~ div .stButton > button:hover {
             color: #fca5a5 !important;
-            border-color: #450a0a !important;
+            border-color: #7f1d1d !important;
             background: #1c06061a !important;
             transform: none !important;
             box-shadow: none !important;
@@ -469,15 +476,20 @@ def _first_name(email: str) -> str:
 
 def render_header(cookie_manager: stx.CookieManager) -> None:
     first_name = _first_name(st.session_state.user_email)
-    col_title, col_logout = st.columns([8, 1])
+    col_title, col_logout = st.columns([6, 1])
     with col_title:
         st.markdown(
             f'<p class="app-title">⚡ PyCraft AI</p>'
-            f'<p class="app-subtitle">Hello, {first_name} &nbsp;·&nbsp; Adaptive Python practice, powered by AI</p>',
+            f'<p class="app-subtitle" style="margin-bottom:0.1rem;">'
+            f'Welcome back, <span class="greeting-name">{first_name}</span>'
+            f'</p>'
+            f'<p class="app-subtitle" style="margin-top:0.15rem;">'
+            f'<span class="greeting-sub">Your AI-powered Python coach is ready 🚀</span>'
+            f'</p>',
             unsafe_allow_html=True,
         )
     with col_logout:
-        st.markdown('<div class="logout-btn">', unsafe_allow_html=True)
+        st.markdown('<div class="signout-anchor"></div>', unsafe_allow_html=True)
         if st.button("Sign out", key="logout_btn"):
             log.info("user logged out: user_id=%s", st.session_state.get("user_id"))
             token = cookie_manager.get(_COOKIE_NAME)
@@ -486,7 +498,6 @@ def render_header(cookie_manager: stx.CookieManager) -> None:
                 cookie_manager.delete(_COOKIE_NAME, key="del_session_logout")
             st.session_state.clear()
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("<hr>", unsafe_allow_html=True)
 
 
@@ -601,7 +612,7 @@ def render_history_tab() -> None:
         }
         for r in rows
     ])
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width='stretch', hide_index=True)
     st.markdown("---")
     for row in rows:
         with st.expander(f"#{row['id']} · {row['topic']} · score {row['score']}/10 · {row['timestamp'][:10]}"):
@@ -635,7 +646,7 @@ def render_start_screen() -> None:
         render_difficulty_picker(st.session_state.get("topic", "lists"))
     col_a, col_b, col_c = st.columns([1, 2, 1])
     with col_b:
-        if st.button("Start Practicing", use_container_width=True):
+        if st.button("Start Practicing", width='stretch'):
             with st.spinner("Generating your first question..."):
                 load_next_question()
             st.rerun()
@@ -706,14 +717,14 @@ def render_result() -> None:
     st.markdown("<br>", unsafe_allow_html=True)
     col_a, col_retry, col_next, col_c = st.columns([1, 1.5, 1.5, 1])
     with col_retry:
-        if st.button("Try Again", use_container_width=True):
+        if st.button("Try Again", width='stretch'):
             st.session_state.submitted = False
             st.session_state.feedback = None
             st.session_state.score = None
             st.session_state.attempt = attempt + 1
             st.rerun()
     with col_next:
-        if st.button("Next Question →", use_container_width=True):
+        if st.button("Next Question →", width='stretch'):
             st.session_state.question = None
             st.session_state.topic_locked = False
             st.session_state.feedback = None
@@ -748,13 +759,24 @@ def main() -> None:
     init_session()
     render_header(cookie_manager)
 
-    practice_tab, history_tab = st.tabs(["Practice", "History"])
+    user_id = st.session_state.user_id
+    stats = asyncio.run(get_all_topic_stats(user_id=user_id))
 
-    with practice_tab:
-        user_id = st.session_state.user_id
-        stats = asyncio.run(get_all_topic_stats(user_id=user_id))
-        render_progress(stats)
+    # ── Two-column layout ──────────────────────────────────────────────
+    left_col, center_col = st.columns([3, 7], gap="large")
 
+    # ── LEFT: Progress + History ───────────────────────────────────────
+    with left_col:
+        progress_tab, history_tab = st.tabs(["Progress", "History"])
+
+        with progress_tab:
+            render_progress(stats)
+
+        with history_tab:
+            render_history_tab()
+
+    # ── CENTER: Practice area ──────────────────────────────────────────
+    with center_col:
         if st.session_state.question is None:
             render_start_screen()
         else:
@@ -763,7 +785,7 @@ def main() -> None:
             st.session_state["_last_code"] = code
 
             st.markdown("<br>", unsafe_allow_html=True)
-            col_a, col_b, col_skip, col_c = st.columns([1, 2, 1, 1])
+            col_b, col_skip = st.columns([3, 1])
             with col_b:
                 attempt = st.session_state.get("attempt", 1)
                 submit_label = f"Re-submit (Attempt {attempt})" if attempt > 1 else "Submit Solution"
@@ -803,9 +825,6 @@ def main() -> None:
             if st.session_state.submitted:
                 st.markdown("<hr>", unsafe_allow_html=True)
                 render_result()
-
-    with history_tab:
-        render_history_tab()
 
 
 if __name__ == "__main__":
