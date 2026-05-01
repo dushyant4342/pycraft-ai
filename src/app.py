@@ -6,7 +6,10 @@ from streamlit_ace import st_ace
 
 from auth import login_ui
 from llm import review_code, next_question
-from tracker import init_db, save_session, get_recent_scores, compute_next_difficulty, get_all_topic_stats, get_topic_stats
+from tracker import (
+    init_db, save_session, get_recent_scores, compute_next_difficulty,
+    get_all_topic_stats, get_topic_stats, get_user_by_token, delete_auth_token,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -387,6 +390,21 @@ def load_next_question() -> None:
     st.session_state.topic_locked = True
 
 
+def try_restore_session() -> None:
+    """Restore user_id/email from URL token on page refresh if session_state is empty."""
+    if st.session_state.get("user_id"):
+        return
+    token = st.query_params.get("t")
+    if not token:
+        return
+    user = get_user_by_token(token)
+    if user:
+        st.session_state.user_id = user["id"]
+        st.session_state.user_email = user["email"]
+    else:
+        del st.query_params["t"]
+
+
 def render_header() -> None:
     col_title, col_logout = st.columns([7, 1])
     with col_title:
@@ -400,6 +418,10 @@ def render_header() -> None:
         st.markdown('<div class="logout-btn">', unsafe_allow_html=True)
         if st.button("Logout", key="logout_btn"):
             log.info("user logged out: user_id=%s", st.session_state.get("user_id"))
+            token = st.query_params.get("t")
+            if token:
+                delete_auth_token(token)
+                del st.query_params["t"]
             st.session_state.clear()
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -420,22 +442,20 @@ def render_progress(stats: list[dict]) -> None:
         color = avg_color(avg)
         icon = TOPIC_ICONS.get(row["topic"], "📌")
         bar_pct = int((avg or 0) / 10 * 100)
-        rows_html += f"""
-        <div class="topic-row">
-            <div>
-                <div class="topic-name">{icon} {row['topic']}</div>
-                <div class="topic-meta">{row['count']} sessions &nbsp;·&nbsp; Level {row['last_difficulty']}/5</div>
-            </div>
-            <div style="text-align:right;">
-                <div style="font-family:'JetBrains Mono',monospace;font-weight:700;color:{color};font-size:1rem;">
-                    {avg}/10
-                </div>
-                <div style="width:80px;height:4px;background:#252840;border-radius:999px;margin-top:4px;">
-                    <div style="width:{bar_pct}%;height:100%;background:{color};border-radius:999px;"></div>
-                </div>
-            </div>
-        </div>
-        """
+        rows_html += (
+            f'<div class="topic-row">'
+            f'<div>'
+            f'<div class="topic-name">{icon} {row["topic"]}</div>'
+            f'<div class="topic-meta">{row["count"]} sessions &nbsp;&middot;&nbsp; Level {row["last_difficulty"]}/5</div>'
+            f'</div>'
+            f'<div style="text-align:right;">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-weight:700;color:{color};font-size:1rem;">{avg}/10</div>'
+            f'<div style="width:80px;height:4px;background:#252840;border-radius:999px;margin-top:4px;">'
+            f'<div style="width:{bar_pct}%;height:100%;background:{color};border-radius:999px;"></div>'
+            f'</div>'
+            f'</div>'
+            f'</div>'
+        )
     card(rows_html)
 
 
@@ -533,6 +553,7 @@ def render_result() -> None:
 def main() -> None:
     inject_css()
     init_db()
+    try_restore_session()
 
     if not st.session_state.get("user_id"):
         login_ui()

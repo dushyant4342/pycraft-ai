@@ -1,6 +1,7 @@
 import asyncio
+import secrets
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent.parent / "pycraft.db"
@@ -11,13 +12,21 @@ def _connect() -> sqlite3.Connection:
 
 
 def init_users_table(conn: sqlite3.Connection) -> None:
-    """Create users table and add user_id column to sessions if missing."""
+    """Create users table, auth_tokens table, and add user_id column to sessions if missing."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             email         TEXT    NOT NULL UNIQUE,
             password_hash TEXT    NOT NULL,
             created_at    TEXT    NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS auth_tokens (
+            token      TEXT    PRIMARY KEY,
+            user_id    INTEGER NOT NULL REFERENCES users(id),
+            email      TEXT    NOT NULL,
+            expires_at TEXT    NOT NULL
         )
     """)
     existing = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
@@ -55,6 +64,36 @@ def create_user(email: str, password_hash: str) -> int:
             return cursor.lastrowid
     except sqlite3.IntegrityError:
         raise ValueError(f"Email already registered: {email}")
+
+
+def create_auth_token(user_id: int, email: str) -> str:
+    """Generate a 30-day session token, store it, and return it."""
+    token = secrets.token_urlsafe(32)
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO auth_tokens (token, user_id, email, expires_at) VALUES (?, ?, ?, ?)",
+            (token, user_id, email, expires_at),
+        )
+    return token
+
+
+def get_user_by_token(token: str) -> dict | None:
+    """Return {id, email} for a valid, unexpired token, or None."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT user_id, email FROM auth_tokens WHERE token = ? AND expires_at > ?",
+            (token, datetime.now(timezone.utc).isoformat()),
+        ).fetchone()
+    if row is None:
+        return None
+    return {"id": row[0], "email": row[1]}
+
+
+def delete_auth_token(token: str) -> None:
+    """Remove a session token (logout)."""
+    with _connect() as conn:
+        conn.execute("DELETE FROM auth_tokens WHERE token = ?", (token,))
 
 
 def get_user_by_email(email: str) -> dict | None:
