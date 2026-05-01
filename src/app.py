@@ -8,11 +8,11 @@ import streamlit as st
 from streamlit_ace import st_ace
 
 from auth import login_ui
-from llm import review_code, next_question
+from llm import review_code, next_question, get_hint
 from tracker import (
     init_db, save_session, get_recent_scores, get_recent_questions,
     compute_next_difficulty, get_all_topic_stats, get_topic_stats,
-    get_user_by_token, delete_auth_token,
+    get_user_by_token, delete_auth_token, get_session_history,
 )
 
 logging.basicConfig(
@@ -268,19 +268,38 @@ def inject_css() -> None:
         /* ── Spinner ───────────────────────────────────── */
         .stSpinner > div { color: #7c6af7 !important; }
 
-        /* ── Logout btn override ───────────────────────── */
-        .logout-btn > button {
-            background: transparent !important;
-            color: #64748b !important;
-            border: 1px solid #252840 !important;
-            border-radius: 8px !important;
-            box-shadow: none !important;
-            font-size: 0.82rem !important;
-            padding: 0.4rem 0.9rem !important;
+        /* ── Header greeting ───────────────────────────── */
+        .app-greeting {
+            font-size: 0.88rem;
+            margin-top: 0.35rem;
+            font-weight: 400;
         }
-        .logout-btn > button:hover {
-            color: #f87171 !important;
-            border-color: #991b1b !important;
+        .greeting-name {
+            color: #a78bfa;
+            font-weight: 700;
+        }
+        .greeting-sep { color: #252840; margin: 0 0.5rem; }
+        .greeting-sub { color: #475569; }
+
+        /* ── Sign-out chip (sibling selector targeting) ─ */
+        div:has(.signout-anchor) ~ div .stButton > button {
+            background: transparent !important;
+            color: #475569 !important;
+            border: 1px solid #1e2235 !important;
+            border-radius: 999px !important;
+            font-size: 0.72rem !important;
+            font-weight: 500 !important;
+            padding: 0.2rem 0.75rem !important;
+            height: auto !important;
+            box-shadow: none !important;
+            letter-spacing: 0.02em !important;
+            white-space: nowrap !important;
+            margin-top: 1.4rem !important;
+        }
+        div:has(.signout-anchor) ~ div .stButton > button:hover {
+            color: #fca5a5 !important;
+            border-color: #450a0a !important;
+            background: #1c06061a !important;
             transform: none !important;
             box-shadow: none !important;
         }
@@ -333,12 +352,13 @@ def card(html: str, accent: bool = False) -> None:
     st.markdown(f'<div class="{cls}">{html}</div>', unsafe_allow_html=True)
 
 
-def score_badge(score: int) -> str:
+def score_badge(score: float) -> str:
     cls = "score-high" if score >= 7 else ("score-mid" if score >= 4 else "score-low")
     label = "Excellent" if score >= 8 else ("Good" if score >= 6 else ("Fair" if score >= 4 else "Needs work"))
+    display = f"{score:.1f}"
     return (
         f'<div class="score-wrap">'
-        f'<span class="score-badge {cls}">{score}/10</span>'
+        f'<span class="score-badge {cls}">{display}/10</span>'
         f'<span style="color:#94a3b8;font-size:0.9rem;font-weight:500;">{label}</span>'
         f'</div>'
     )
@@ -377,6 +397,10 @@ def init_session() -> None:
         "score": None,
         "submitted": False,
         "topic_locked": False,
+        "skip_count": 0,
+        "hint_level": 0,
+        "hints": [],
+        "attempt": 1,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -409,6 +433,9 @@ def load_next_question() -> None:
     st.session_state.score = None
     st.session_state.submitted = False
     st.session_state.topic_locked = True
+    st.session_state.hint_level = 0
+    st.session_state.hints = []
+    st.session_state.attempt = 1
 
 
 _COOKIE_NAME = "pycraft_session"
@@ -433,18 +460,25 @@ def try_restore_session(cookie_manager: stx.CookieManager) -> None:
         cookie_manager.delete(_COOKIE_NAME, key="del_stale_cookie")
 
 
+def _first_name(email: str) -> str:
+    """Extract capitalized first name from email username, stripping trailing digits."""
+    username = email.split("@")[0].split(".")[0]
+    name = username.rstrip("0123456789")
+    return (name or username).capitalize()
+
+
 def render_header(cookie_manager: stx.CookieManager) -> None:
-    col_title, col_logout = st.columns([7, 1])
+    first_name = _first_name(st.session_state.user_email)
+    col_title, col_logout = st.columns([8, 1])
     with col_title:
         st.markdown(
             f'<p class="app-title">⚡ PyCraft AI</p>'
-            f'<p class="app-subtitle">Adaptive Python practice, powered by AI &nbsp;·&nbsp; {st.session_state.user_email}</p>',
+            f'<p class="app-subtitle">Hello, {first_name} &nbsp;·&nbsp; Adaptive Python practice, powered by AI</p>',
             unsafe_allow_html=True,
         )
     with col_logout:
-        st.write("")
         st.markdown('<div class="logout-btn">', unsafe_allow_html=True)
-        if st.button("Logout", key="logout_btn"):
+        if st.button("Sign out", key="logout_btn"):
             log.info("user logged out: user_id=%s", st.session_state.get("user_id"))
             token = cookie_manager.get(_COOKIE_NAME)
             if token:
@@ -511,6 +545,83 @@ def render_topic_picker() -> None:
         st.rerun()
 
 
+DIFF_LABELS = {1: "Beginner", 2: "Easy", 3: "Medium", 4: "Hard", 5: "Expert"}
+
+
+def render_difficulty_picker(topic: str) -> None:
+    user_id = st.session_state.get("user_id")
+    default = st.session_state.get("difficulty", 1)
+    if topic and user_id:
+        stats = asyncio.run(get_topic_stats(topic, user_id=user_id))
+        if stats["count"] > 0 and stats["last_difficulty"]:
+            default = stats["last_difficulty"]
+    st.markdown(
+        "<p style='text-align:center;color:#475569;font-size:0.75rem;letter-spacing:0.07em;"
+        "text-transform:uppercase;font-weight:600;margin:0.75rem 0 0.5rem;'>Difficulty</p>",
+        unsafe_allow_html=True,
+    )
+    col_a, col_b, col_c = st.columns([1, 2, 1])
+    with col_b:
+        chosen = st.select_slider(
+            "difficulty_picker",
+            options=[1, 2, 3, 4, 5],
+            value=default,
+            format_func=lambda v: f"{v} - {DIFF_LABELS[v]}",
+            label_visibility="collapsed",
+        )
+    if chosen != st.session_state.get("difficulty"):
+        st.session_state.difficulty = chosen
+
+
+def render_history_tab() -> None:
+    user_id = st.session_state.get("user_id")
+    if not user_id:
+        return
+    st.markdown(
+        "<p style='font-size:0.72rem;font-weight:700;color:#7c6af7;text-transform:uppercase;"
+        "letter-spacing:0.1em;margin-bottom:0.75rem;'>Past Submissions</p>",
+        unsafe_allow_html=True,
+    )
+    topic_options = ["All"] + TOPICS
+    topic_filter = st.selectbox("Filter by topic", topic_options, key="history_topic_filter")
+    selected_topic = None if topic_filter == "All" else topic_filter
+    rows = asyncio.run(get_session_history(user_id, topic=selected_topic, limit=50))
+    if not rows:
+        st.caption("No submissions yet.")
+        return
+    import pandas as pd
+    df = pd.DataFrame([
+        {
+            "Date": r["timestamp"][:10],
+            "Topic": r["topic"],
+            "Diff": r["difficulty"],
+            "Score": r["score"],
+            "Code": (r["code"][:120] + "..." if len(r["code"]) > 120 else r["code"]),
+            "Feedback": (r["feedback"][:200] + "..." if len(r["feedback"]) > 200 else r["feedback"]),
+        }
+        for r in rows
+    ])
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.markdown("---")
+    for row in rows:
+        with st.expander(f"#{row['id']} · {row['topic']} · score {row['score']}/10 · {row['timestamp'][:10]}"):
+            st.markdown(f"**Question:** {row['question']}")
+            st_ace(
+                value=row["code"],
+                language="python",
+                theme="tomorrow_night",
+                font_size=13,
+                height=200,
+                readonly=True,
+                auto_update=True,
+                key=f"history_ace_{row['id']}",
+                show_gutter=True,
+                show_print_margin=False,
+            )
+            kind = "success" if row["score"] >= 7 else ("warning" if row["score"] >= 4 else "error")
+            alert(row["feedback"], kind=kind)
+
+
 def render_start_screen() -> None:
     st.markdown("<br>", unsafe_allow_html=True)
     card(
@@ -521,6 +632,7 @@ def render_start_screen() -> None:
     )
     if not st.session_state.get("topic_locked", False):
         render_topic_picker()
+        render_difficulty_picker(st.session_state.get("topic", "lists"))
     col_a, col_b, col_c = st.columns([1, 2, 1])
     with col_b:
         if st.button("Start Practicing", use_container_width=True):
@@ -538,6 +650,30 @@ def render_question() -> None:
         f'<div style="margin-top:0.85rem;" class="question-text">{st.session_state.question}</div>',
         accent=True,
     )
+
+    hint_level = st.session_state.get("hint_level", 0)
+    hints = st.session_state.get("hints", [])
+    max_hints = 3
+
+    if hint_level < max_hints and not st.session_state.get("submitted", False):
+        btn_label = f"Get Hint ({hint_level + 1}/{max_hints})" if hint_level > 0 else "Get Hint"
+        if st.button(btn_label, key="hint_btn"):
+            new_level = hint_level + 1
+            code_so_far = st.session_state.get("_last_code", "")
+            with st.spinner("Generating hint..."):
+                hint_text = asyncio.run(
+                    get_hint(st.session_state.question, code_so_far, new_level)
+                )
+            st.session_state.hint_level = new_level
+            st.session_state.hints = hints + [hint_text]
+            st.rerun()
+    elif hint_level >= max_hints:
+        st.button("Get Hint (3/3)", key="hint_btn_disabled", disabled=True)
+
+    if st.session_state.get("hints"):
+        with st.expander("Hints", expanded=True):
+            for i, h in enumerate(st.session_state.hints, 1):
+                st.markdown(f"**Hint {i}:** {h}")
 
 
 def render_editor() -> str:
@@ -559,20 +695,31 @@ def render_editor() -> str:
 def render_result() -> None:
     score = st.session_state.score
     feedback = st.session_state.feedback
+    attempt = st.session_state.get("attempt", 1)
 
     kind = "success" if score >= 7 else ("warning" if score >= 4 else "error")
     st.markdown(score_badge(score), unsafe_allow_html=True)
+    if attempt > 1:
+        st.caption(f"Attempt {attempt}")
     alert(feedback, kind=kind)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    col_a, col_b, col_c = st.columns([1, 2, 1])
-    with col_b:
+    col_a, col_retry, col_next, col_c = st.columns([1, 1.5, 1.5, 1])
+    with col_retry:
+        if st.button("Try Again", use_container_width=True):
+            st.session_state.submitted = False
+            st.session_state.feedback = None
+            st.session_state.score = None
+            st.session_state.attempt = attempt + 1
+            st.rerun()
+    with col_next:
         if st.button("Next Question →", use_container_width=True):
             st.session_state.question = None
             st.session_state.topic_locked = False
             st.session_state.feedback = None
             st.session_state.score = None
             st.session_state.submitted = False
+            st.session_state.attempt = 1
             st.rerun()
 
 
@@ -601,48 +748,64 @@ def main() -> None:
     init_session()
     render_header(cookie_manager)
 
-    user_id = st.session_state.user_id
-    stats = asyncio.run(get_all_topic_stats(user_id=user_id))
-    render_progress(stats)
+    practice_tab, history_tab = st.tabs(["Practice", "History"])
 
-    if st.session_state.question is None:
-        render_start_screen()
-        return
+    with practice_tab:
+        user_id = st.session_state.user_id
+        stats = asyncio.run(get_all_topic_stats(user_id=user_id))
+        render_progress(stats)
 
-    render_question()
-    code = render_editor()
+        if st.session_state.question is None:
+            render_start_screen()
+        else:
+            render_question()
+            code = render_editor()
+            st.session_state["_last_code"] = code
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    col_a, col_b, col_c = st.columns([1, 2, 1])
-    with col_b:
-        submit = st.button(
-            "Submit Solution",
-            use_container_width=True,
-            disabled=st.session_state.submitted,
-        )
+            st.markdown("<br>", unsafe_allow_html=True)
+            col_a, col_b, col_skip, col_c = st.columns([1, 2, 1, 1])
+            with col_b:
+                attempt = st.session_state.get("attempt", 1)
+                submit_label = f"Re-submit (Attempt {attempt})" if attempt > 1 else "Submit Solution"
+                submit = st.button(
+                    submit_label,
+                    use_container_width=True,
+                    disabled=st.session_state.submitted,
+                )
+            with col_skip:
+                if st.button("Skip", use_container_width=True, disabled=st.session_state.submitted):
+                    st.session_state.skip_count = st.session_state.get("skip_count", 0) + 1
+                    load_next_question()
+                    st.rerun()
+            skip_count = st.session_state.get("skip_count", 0)
+            if skip_count > 0:
+                st.caption(f"Skipped: {skip_count} this session")
 
-    if submit and code.strip():
-        log.info("code submitted: topic=%s difficulty=%d", st.session_state.topic, st.session_state.difficulty)
-        with st.spinner("AI is reviewing your code..."):
-            result = asyncio.run(review_code(st.session_state.question, code))
-        st.session_state.score = result["score"]
-        st.session_state.feedback = result["feedback"]
-        st.session_state.submitted = True
-        log.info("review complete: score=%d/10 topic=%s", result["score"], st.session_state.topic)
-        save_session(
-            topic=st.session_state.topic,
-            difficulty=st.session_state.difficulty,
-            question=st.session_state.question,
-            code=code,
-            score=result["score"],
-            feedback=result["feedback"],
-            user_id=user_id,
-        )
-        st.rerun()
+            if submit and code.strip():
+                log.info("code submitted: topic=%s difficulty=%d", st.session_state.topic, st.session_state.difficulty)
+                with st.spinner("AI is reviewing your code..."):
+                    result = asyncio.run(review_code(st.session_state.question, code))
+                st.session_state.score = result["score"]
+                st.session_state.feedback = result["feedback"]
+                st.session_state.submitted = True
+                log.info("review complete: score=%d/10 topic=%s", result["score"], st.session_state.topic)
+                save_session(
+                    topic=st.session_state.topic,
+                    difficulty=st.session_state.difficulty,
+                    question=st.session_state.question,
+                    code=code,
+                    score=result["score"],
+                    feedback=result["feedback"],
+                    user_id=user_id,
+                )
+                st.rerun()
 
-    if st.session_state.submitted:
-        st.markdown("<hr>", unsafe_allow_html=True)
-        render_result()
+            if st.session_state.submitted:
+                st.markdown("<hr>", unsafe_allow_html=True)
+                render_result()
+
+    with history_tab:
+        render_history_tab()
 
 
 if __name__ == "__main__":
