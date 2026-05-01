@@ -53,7 +53,14 @@ def inject_css() -> None:
         #MainMenu, footer, header { visibility: hidden; }
         [data-testid="stToolbar"] { display: none; }
         [data-testid="stDecoration"] { display: none; }
-        .block-container { padding-top: 2rem !important; max-width: 1280px !important; }
+        .block-container {
+            padding-top: 2rem !important;
+            max-width: 1280px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            padding-left: 2rem !important;
+            padding-right: 2rem !important;
+        }
 
         /* ── Typography ────────────────────────────────── */
         h1, h2, h3 { font-family: 'Inter', sans-serif; }
@@ -206,29 +213,53 @@ def inject_css() -> None:
             margin-bottom: 0.5rem;
         }
 
-        /* ── Buttons ───────────────────────────────────── */
-        .stButton > button {
+        /* ── Primary Buttons ───────────────────────────────────── */
+        .stButton > button[kind="primary"] {
             background: linear-gradient(135deg, #7c6af7 0%, #6657d4 100%) !important;
             color: #fff !important;
             border: none !important;
             border-radius: 10px !important;
             font-family: 'Inter', sans-serif !important;
             font-weight: 600 !important;
-            font-size: 0.9rem !important;
-            padding: 0.6rem 1.6rem !important;
+            font-size: 0.95rem !important;
+            padding: 0.65rem 1.6rem !important;
             transition: all 0.18s ease !important;
             box-shadow: 0 2px 12px #7c6af740 !important;
+            letter-spacing: 0.01em !important;
         }
-        .stButton > button:hover {
+        .stButton > button[kind="primary"]:hover {
             background: linear-gradient(135deg, #6657d4 0%, #5548b8 100%) !important;
             transform: translateY(-1px) !important;
             box-shadow: 0 4px 18px #7c6af760 !important;
         }
-        .stButton > button:active { transform: translateY(0) !important; }
+        .stButton > button[kind="primary"]:active { transform: translateY(0) !important; }
+
+        /* ── Secondary Buttons ───────────────────────────────────── */
+        .stButton > button[kind="secondary"] {
+            background: #161925 !important;
+            color: #e2e8f0 !important;
+            border: 1px solid #252840 !important;
+            border-radius: 10px !important;
+            font-family: 'Inter', sans-serif !important;
+            font-weight: 600 !important;
+            font-size: 0.9rem !important;
+            padding: 0.6rem 1.6rem !important;
+            transition: all 0.18s ease !important;
+            box-shadow: none !important;
+        }
+        .stButton > button[kind="secondary"]:hover {
+            background: #1a1d35 !important;
+            border-color: #7c6af7 !important;
+            color: #fff !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 2px 10px #7c6af720 !important;
+        }
         .stButton > button:disabled {
             background: #252840 !important;
             color: #475569 !important;
+            border-color: #252840 !important;
             box-shadow: none !important;
+            transform: none !important;
         }
 
         /* ── Ace editor ────────────────────────────────── */
@@ -247,20 +278,60 @@ def inject_css() -> None:
         .stTabs [data-baseweb="tab-list"] {
             background: #161925;
             border-radius: 10px;
-            padding: 0.3rem;
+            padding: 0.25rem;
             border: 1px solid #252840;
-            gap: 0.5rem;
+            gap: 0.25rem;
+            width: 100%;
+            display: flex;
         }
         .stTabs [data-baseweb="tab"] {
             border-radius: 8px !important;
             color: #64748b !important;
             font-weight: 600 !important;
             font-size: 0.88rem !important;
-            padding: 0.4rem 1.1rem !important;
+            flex: 1 1 0 !important;
+            text-align: center !important;
+            justify-content: center !important;
         }
         .stTabs [aria-selected="true"] {
             background: #7c6af7 !important;
             color: #fff !important;
+        }
+        /* Hide the red underline indicator Streamlit adds */
+        .stTabs [data-baseweb="tab-highlight"] { display: none !important; }
+        .stTabs [data-baseweb="tab-border"]    { display: none !important; }
+
+        /* ── Selectbox label ───────────────────────────── */
+        .stSelectbox label {
+            font-size: 0.72rem !important;
+            font-weight: 600 !important;
+            color: #64748b !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.08em !important;
+        }
+
+        /* ── Hide history toggle button text, keep clickable ── */
+        div:has(.hist-rows-section) .stButton > button,
+        [key^="hist_toggle_"] button {
+            opacity: 0 !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            padding: 0 !important;
+            margin: -0.4rem 0 0.4rem !important;
+            border: none !important;
+            box-shadow: none !important;
+            pointer-events: all !important;
+        }
+
+        /* ── History detail panel ──────────────────────── */
+        .hist-detail {
+            background: #0d1120;
+            border: 1px solid #1e2235;
+            border-top: none;
+            border-radius: 0 0 12px 12px;
+            padding: 1rem 1.1rem;
+            margin-top: -0.4rem;
+            margin-bottom: 0.5rem;
         }
 
         /* ── Divider ───────────────────────────────────── */
@@ -314,41 +385,106 @@ def inject_css() -> None:
         /* ── Topic picker radio pills ──────────────────── */
         div[data-testid="stRadioGroup"] { justify-content: center; }
         div[data-testid="stRadioGroup"] [role="radiogroup"] {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.45rem;
-            justify-content: center;
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 0.45rem !important;
+            justify-content: center !important;
+            padding: 0 !important;
         }
         div[data-testid="stRadioGroup"] [role="radiogroup"] label {
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-            background: #161925;
-            border: 1.5px solid #252840;
-            border-radius: 9999px;
-            padding: 0.32rem 0.95rem;
-            cursor: pointer;
-            white-space: nowrap;
-            font-size: 0.82rem;
-            font-weight: 500;
-            color: #94a3b8;
-            transition: border-color 0.15s, color 0.15s, background 0.15s;
-            user-select: none;
+            display: flex !important;
+            align-items: center !important;
+            gap: 0.3rem !important;
+            background: #161925 !important;
+            border: 1.5px solid #252840 !important;
+            border-radius: 9999px !important;
+            padding: 0.32rem 0.95rem !important;
+            cursor: pointer !important;
+            white-space: nowrap !important;
+            font-size: 0.82rem !important;
+            font-weight: 500 !important;
+            color: #94a3b8 !important;
+            transition: border-color 0.15s, color 0.15s, background 0.15s !important;
+            user-select: none !important;
+            line-height: 1.4 !important;
         }
         div[data-testid="stRadioGroup"] [role="radiogroup"] label:hover {
-            border-color: #6366f1;
-            color: #c4b5fd;
-            background: #1a1d2e;
+            border-color: #6366f1 !important;
+            color: #c4b5fd !important;
+            background: #1a1d2e !important;
         }
         div[data-testid="stRadioGroup"] [role="radiogroup"] label:has(input:checked) {
-            background: linear-gradient(135deg, #6366f1, #818cf8);
-            border-color: transparent;
-            color: #fff;
-            font-weight: 700;
-            box-shadow: 0 2px 12px #6366f145;
+            background: linear-gradient(135deg, #6366f1, #818cf8) !important;
+            border-color: transparent !important;
+            color: #fff !important;
+            font-weight: 700 !important;
+            box-shadow: 0 2px 12px #6366f145 !important;
         }
+        /* Hide ALL internal radio elements — the dot, the circle, everything */
         div[data-testid="stRadioGroup"] [role="radiogroup"] input[type="radio"] {
-            display: none;
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        div[data-testid="stRadioGroup"] [role="radiogroup"] label > div {
+            display: none !important;
+        }
+        div[data-testid="stRadioGroup"] [role="radiogroup"] label > p {
+            margin: 0 !important;
+            font-size: 0.82rem !important;
+            color: inherit !important;
+        }
+
+
+
+        /* ── Difficulty select slider ───────────────────── */
+        .stSlider [data-baseweb="slider"] [role="slider"] {
+            background: #7c6af7 !important;
+            border-color: #7c6af7 !important;
+        }
+        .stSlider [data-baseweb="slider"] div[data-testid="stTickBar"] {
+            color: #475569 !important;
+            font-size: 0.72rem !important;
+        }
+
+        /* ── Start Practicing — force solid, last rule wins ── */
+        div[data-testid="stVerticalBlock"] .stButton > button,
+        .stButton > button {
+            background: linear-gradient(135deg, #7c6af7 0%, #6657d4 100%) !important;
+            color: #ffffff !important;
+            border: none !important;
+            border-radius: 12px !important;
+            font-weight: 700 !important;
+            font-size: 0.95rem !important;
+            padding: 0.7rem 1.6rem !important;
+            box-shadow: 0 2px 18px #7c6af750 !important;
+            letter-spacing: 0.02em !important;
+            width: 100% !important;
+        }
+        .stButton > button:hover {
+            background: linear-gradient(135deg, #6657d4 0%, #5548b8 100%) !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 22px #7c6af760 !important;
+        }
+        .stButton > button:disabled {
+            background: #252840 !important;
+            color: #475569 !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+        /* Sign-out stays ghost */
+        div:has(.signout-anchor) ~ div .stButton > button {
+            background: transparent !important;
+            border: 1px solid #252840 !important;
+            color: #64748b !important;
+            box-shadow: none !important;
+            width: auto !important;
+            font-size: 0.75rem !important;
+            font-weight: 500 !important;
+            border-radius: 999px !important;
+            padding: 0.3rem 1rem !important;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -566,20 +702,28 @@ def render_difficulty_picker(topic: str) -> None:
         stats = asyncio.run(get_topic_stats(topic, user_id=user_id))
         if stats["count"] > 0 and stats["last_difficulty"]:
             default = stats["last_difficulty"]
+
+    diff_colors = {1: "#4ade80", 2: "#86efac", 3: "#fbbf24", 4: "#fb923c", 5: "#f87171"}
+
     st.markdown(
         "<p style='text-align:center;color:#475569;font-size:0.75rem;letter-spacing:0.07em;"
-        "text-transform:uppercase;font-weight:600;margin:0.75rem 0 0.5rem;'>Difficulty</p>",
+        "text-transform:uppercase;font-weight:600;margin:0.75rem 0 0.75rem;'>Difficulty</p>",
         unsafe_allow_html=True,
     )
-    col_a, col_b, col_c = st.columns([1, 2, 1])
-    with col_b:
-        chosen = st.select_slider(
-            "difficulty_picker",
-            options=[1, 2, 3, 4, 5],
-            value=default,
-            format_func=lambda v: f"{v} - {DIFF_LABELS[v]}",
-            label_visibility="collapsed",
-        )
+    chosen = st.select_slider(
+        "difficulty_picker",
+        options=[1, 2, 3, 4, 5],
+        value=default,
+        format_func=lambda v: f"{v} - {DIFF_LABELS[v]}",
+        label_visibility="collapsed",
+    )
+    # Show colored label BELOW slider
+    color = diff_colors.get(chosen, "#7c6af7")
+    st.markdown(
+        f"<p style='text-align:center;color:{color};font-family:\"JetBrains Mono\",monospace;"
+        f"font-weight:700;font-size:0.88rem;margin-top:0.25rem;'>{chosen} — {DIFF_LABELS[chosen]}</p>",
+        unsafe_allow_html=True,
+    )
     if chosen != st.session_state.get("difficulty"):
         st.session_state.difficulty = chosen
 
@@ -588,68 +732,113 @@ def render_history_tab() -> None:
     user_id = st.session_state.get("user_id")
     if not user_id:
         return
+
     st.markdown(
         "<p style='font-size:0.72rem;font-weight:700;color:#7c6af7;text-transform:uppercase;"
         "letter-spacing:0.1em;margin-bottom:0.75rem;'>Past Submissions</p>",
         unsafe_allow_html=True,
     )
+
+    # ── Topic filter as a selectbox (cleaner than radio in narrow column) ──
     topic_options = ["All"] + TOPICS
-    topic_filter = st.selectbox("Filter by topic", topic_options, key="history_topic_filter")
-    selected_topic = None if topic_filter == "All" else topic_filter
+    selected_filter = st.selectbox(
+        "Filter by topic",
+        options=topic_options,
+        format_func=lambda t: f"{TOPIC_ICONS.get(t, '')} {t}" if t != "All" else "🗂 All topics",
+        key="history_topic_filter",
+        label_visibility="collapsed",
+    )
+    selected_topic = None if selected_filter == "All" else selected_filter
+
     rows = asyncio.run(get_session_history(user_id, topic=selected_topic, limit=50))
     if not rows:
         st.caption("No submissions yet.")
         return
-    import pandas as pd
-    df = pd.DataFrame([
-        {
-            "Date": r["timestamp"][:10],
-            "Topic": r["topic"],
-            "Diff": r["difficulty"],
-            "Score": r["score"],
-            "Code": (r["code"][:120] + "..." if len(r["code"]) > 120 else r["code"]),
-            "Feedback": (r["feedback"][:200] + "..." if len(r["feedback"]) > 200 else r["feedback"]),
-        }
-        for r in rows
-    ])
-    st.dataframe(df, width='stretch', hide_index=True)
-    st.markdown("---")
+
+    st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
+
     for row in rows:
-        with st.expander(f"#{row['id']} · {row['topic']} · score {row['score']}/10 · {row['timestamp'][:10]}"):
-            st.markdown(f"**Question:** {row['question']}")
+        score = row["score"]
+        icon = TOPIC_ICONS.get(row["topic"], "📌")
+        kind = "success" if score >= 7 else ("warning" if score >= 4 else "error")
+        score_color = "#4ade80" if score >= 7 else ("#fbbf24" if score >= 4 else "#f87171")
+        score_bg    = "#052e16" if score >= 7 else ("#1c1500" if score >= 4 else "#1c0606")
+        score_bdr   = "#166534" if score >= 7 else ("#92400e" if score >= 4 else "#991b1b")
+
+        exp_key = f"hist_open_{row['id']}"
+        is_open = st.session_state.get(exp_key, False)
+
+        # ── Row card ──
+        st.markdown(
+            f"""
+            <div style="
+                display:flex; align-items:center; justify-content:space-between;
+                background:#161925; border:1px solid #252840; border-radius:10px;
+                padding:0.55rem 0.9rem; margin-bottom:0.35rem; cursor:pointer;
+            ">
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                    <span style="color:#475569;font-size:0.75rem;font-family:'JetBrains Mono',monospace;">#{row['id']}</span>
+                    <span style="background:#2e1065;color:#c4b5fd;border-radius:999px;
+                        padding:0.15rem 0.55rem;font-size:0.7rem;font-weight:600;">
+                        {icon} {row['topic']}
+                    </span>
+                    <span style="color:#475569;font-size:0.74rem;">{row['timestamp'][:10]}</span>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace;font-weight:700;
+                    color:{score_color};background:{score_bg};border:1px solid {score_bdr};
+                    border-radius:6px;padding:0.1rem 0.45rem;font-size:0.8rem;">
+                    {score:.1f}/10
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Invisible toggle button overlaid via Streamlit (so clicks work)
+        if st.button(
+            f"{'▲ Collapse' if is_open else '▼ Expand'} #{row['id']}",
+            key=f"hist_toggle_{row['id']}",
+            use_container_width=True,
+        ):
+            st.session_state[exp_key] = not is_open
+            st.rerun()
+
+        if is_open:
+            st.markdown(f"<p style='color:#94a3b8;font-size:0.82rem;font-style:italic;"
+                        f"margin:0.25rem 0 0.5rem;line-height:1.5;'>{row['question']}</p>",
+                        unsafe_allow_html=True)
             st_ace(
                 value=row["code"],
                 language="python",
                 theme="tomorrow_night",
                 font_size=13,
-                height=200,
+                height=150,
                 readonly=True,
                 auto_update=True,
                 key=f"history_ace_{row['id']}",
                 show_gutter=True,
                 show_print_margin=False,
             )
-            kind = "success" if row["score"] >= 7 else ("warning" if row["score"] >= 4 else "error")
             alert(row["feedback"], kind=kind)
+            st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
 
 
 def render_start_screen() -> None:
-    st.markdown("<br>", unsafe_allow_html=True)
     card(
-        '<p style="text-align:center;font-size:2.5rem;margin:0;">🚀</p>'
-        '<p style="text-align:center;font-size:1.2rem;font-weight:600;color:#e2e8f0;margin:0.5rem 0 0.25rem;">Ready to practice?</p>'
-        '<p style="text-align:center;color:#64748b;font-size:0.9rem;margin:0;">Pick a topic or let AI choose for you.</p>',
+        '<div style="text-align:center;padding:1rem 0 0.75rem;">'
+        '<p style="font-size:1.25rem;font-weight:700;color:#e2e8f0;margin:0 0 0.3rem;letter-spacing:-0.01em;">Ready to practice?</p>'
+        '<p style="color:#64748b;font-size:0.88rem;margin:0;">Pick a topic or let AI choose for you.</p>'
+        '</div>',
         accent=True,
     )
+    st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
     if not st.session_state.get("topic_locked", False):
         render_topic_picker()
         render_difficulty_picker(st.session_state.get("topic", "lists"))
-    col_a, col_b, col_c = st.columns([1, 2, 1])
-    with col_b:
-        if st.button("Start Practicing", width='stretch'):
-            with st.spinner("Generating your first question..."):
-                load_next_question()
-            st.rerun()
+    if st.button("Start Practicing", use_container_width=True, type="primary"):
+        with st.spinner("Generating your first question..."):
+            load_next_question()
+        st.rerun()
 
 
 def render_question() -> None:
@@ -717,14 +906,14 @@ def render_result() -> None:
     st.markdown("<br>", unsafe_allow_html=True)
     col_a, col_retry, col_next, col_c = st.columns([1, 1.5, 1.5, 1])
     with col_retry:
-        if st.button("Try Again", width='stretch'):
+        if st.button("Try Again", width='stretch', type="primary"):
             st.session_state.submitted = False
             st.session_state.feedback = None
             st.session_state.score = None
             st.session_state.attempt = attempt + 1
             st.rerun()
     with col_next:
-        if st.button("Next Question →", width='stretch'):
+        if st.button("Next Question →", width='stretch', type="primary"):
             st.session_state.question = None
             st.session_state.topic_locked = False
             st.session_state.feedback = None
@@ -740,7 +929,6 @@ def main() -> None:
 
     cookie_manager = _get_cookie_manager()
 
-    # Commit pending login token to cookie (set by auth.py after rerun)
     pending = st.session_state.pop("_pending_token", None)
     if pending:
         expires = datetime.now() + timedelta(days=30)
@@ -762,10 +950,10 @@ def main() -> None:
     user_id = st.session_state.user_id
     stats = asyncio.run(get_all_topic_stats(user_id=user_id))
 
-    # ── Two-column layout ──────────────────────────────────────────────
-    left_col, center_col = st.columns([3, 7], gap="large")
+    # ── TWO-COLUMN LAYOUT ──────────────────────────────────────────────
+    left_col, center_col = st.columns([5, 7], gap="large")
 
-    # ── LEFT: Progress + History ───────────────────────────────────────
+    # ── LEFT: Progress + History tabs ─────────────────────────────────
     with left_col:
         progress_tab, history_tab = st.tabs(["Progress", "History"])
 
@@ -775,7 +963,7 @@ def main() -> None:
         with history_tab:
             render_history_tab()
 
-    # ── CENTER: Practice area ──────────────────────────────────────────
+    # ── CENTER: Ready to practice / active question ────────────────────
     with center_col:
         if st.session_state.question is None:
             render_start_screen()
@@ -793,12 +981,14 @@ def main() -> None:
                     submit_label,
                     use_container_width=True,
                     disabled=st.session_state.submitted,
+                    type="primary",
                 )
             with col_skip:
                 if st.button("Skip", use_container_width=True, disabled=st.session_state.submitted):
                     st.session_state.skip_count = st.session_state.get("skip_count", 0) + 1
                     load_next_question()
                     st.rerun()
+
             skip_count = st.session_state.get("skip_count", 0)
             if skip_count > 0:
                 st.caption(f"Skipped: {skip_count} this session")
