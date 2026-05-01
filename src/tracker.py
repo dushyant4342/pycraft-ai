@@ -131,6 +131,22 @@ def save_session(
         )
 
 
+def get_recent_questions(topic: str, limit: int = 10, user_id: int | None = None) -> list[str]:
+    """Return the last `limit` question texts for a topic, newest first."""
+    with _connect() as conn:
+        if user_id is not None:
+            rows = conn.execute(
+                "SELECT question FROM sessions WHERE topic = ? AND user_id = ? ORDER BY id DESC LIMIT ?",
+                (topic, user_id, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT question FROM sessions WHERE topic = ? ORDER BY id DESC LIMIT ?",
+                (topic, limit),
+            ).fetchall()
+    return [row[0] for row in rows]
+
+
 def get_recent_scores(topic: str, limit: int = 5, user_id: int | None = None) -> list[int]:
     """Return the last `limit` scores for a topic, newest first."""
     with _connect() as conn:

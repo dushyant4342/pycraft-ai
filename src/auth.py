@@ -151,7 +151,7 @@ def login_ui() -> None:
                 if user and verify_password(password, user["password_hash"]):
                     st.session_state.user_id = user["id"]
                     st.session_state.user_email = user["email"]
-                    st.query_params["t"] = create_auth_token(user["id"], user["email"])
+                    st.session_state["_pending_token"] = create_auth_token(user["id"], user["email"])
                     st.rerun()
                 else:
                     st.error("Invalid email or password.")
@@ -172,7 +172,7 @@ def login_ui() -> None:
                     user_id = create_user(reg_email, hash_password(reg_password))
                     st.session_state.user_id = user_id
                     st.session_state.user_email = reg_email
-                    st.query_params["t"] = create_auth_token(user_id, reg_email)
+                    st.session_state["_pending_token"] = create_auth_token(user_id, reg_email)
                     st.rerun()
                 except ValueError:
                     st.error("An account with that email already exists.")

@@ -1,14 +1,18 @@
 import asyncio
 import logging
 import random
+from datetime import datetime, timedelta
+
+import extra_streamlit_components as stx
 import streamlit as st
 from streamlit_ace import st_ace
 
 from auth import login_ui
 from llm import review_code, next_question
 from tracker import (
-    init_db, save_session, get_recent_scores, compute_next_difficulty,
-    get_all_topic_stats, get_topic_stats, get_user_by_token, delete_auth_token,
+    init_db, save_session, get_recent_scores, get_recent_questions,
+    compute_next_difficulty, get_all_topic_stats, get_topic_stats,
+    get_user_by_token, delete_auth_token,
 )
 
 logging.basicConfig(
@@ -281,28 +285,44 @@ def inject_css() -> None:
             box-shadow: none !important;
         }
 
-        /* ── Topic picker pills ────────────────────────── */
-        div[data-testid="stHorizontalBlock"] .stButton > button {
-            background: #1e293b !important;
-            border: 1px solid #334155 !important;
-            color: #94a3b8 !important;
-            border-radius: 9999px !important;
-            font-size: 0.82rem !important;
-            padding: 0.35rem 0.9rem !important;
-            box-shadow: none !important;
-            font-weight: 500 !important;
+        /* ── Topic picker radio pills ──────────────────── */
+        div[data-testid="stRadioGroup"] { justify-content: center; }
+        div[data-testid="stRadioGroup"] [role="radiogroup"] {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            justify-content: center;
         }
-        div[data-testid="stHorizontalBlock"] .stButton > button:hover {
-            border-color: #6366f1 !important;
-            color: #e2e8f0 !important;
-            transform: none !important;
-            box-shadow: none !important;
+        div[data-testid="stRadioGroup"] [role="radiogroup"] label {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: #161925;
+            border: 1.5px solid #252840;
+            border-radius: 9999px;
+            padding: 0.32rem 0.95rem;
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: #94a3b8;
+            transition: border-color 0.15s, color 0.15s, background 0.15s;
+            user-select: none;
         }
-        .pill-selected > button {
-            background: linear-gradient(135deg,#6366f1,#818cf8) !important;
-            border-color: transparent !important;
-            color: #fff !important;
-            font-weight: 600 !important;
+        div[data-testid="stRadioGroup"] [role="radiogroup"] label:hover {
+            border-color: #6366f1;
+            color: #c4b5fd;
+            background: #1a1d2e;
+        }
+        div[data-testid="stRadioGroup"] [role="radiogroup"] label:has(input:checked) {
+            background: linear-gradient(135deg, #6366f1, #818cf8);
+            border-color: transparent;
+            color: #fff;
+            font-weight: 700;
+            box-shadow: 0 2px 12px #6366f145;
+        }
+        div[data-testid="stRadioGroup"] [role="radiogroup"] input[type="radio"] {
+            display: none;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -375,10 +395,11 @@ def load_next_question() -> None:
         st.session_state.difficulty = stats["last_difficulty"]
         log.info("difficulty seeded from history: topic=%s difficulty=%d (sessions=%d)", topic, stats["last_difficulty"], stats["count"])
     history = get_recent_scores(st.session_state.topic, limit=5, user_id=user_id)
+    past_questions = get_recent_questions(st.session_state.topic, limit=10, user_id=user_id)
     st.session_state.difficulty = compute_next_difficulty(history, st.session_state.difficulty)
-    log.info("generating question: topic=%s difficulty=%d history=%s", st.session_state.topic, st.session_state.difficulty, history)
+    log.info("generating question: topic=%s difficulty=%d history=%s past_q_count=%d", st.session_state.topic, st.session_state.difficulty, history, len(past_questions))
     result = asyncio.run(
-        next_question(st.session_state.topic, st.session_state.difficulty, history)
+        next_question(st.session_state.topic, st.session_state.difficulty, history, past_questions)
     )
     st.session_state.question = result["question"]
     st.session_state.topic = result["topic"]
@@ -390,11 +411,18 @@ def load_next_question() -> None:
     st.session_state.topic_locked = True
 
 
-def try_restore_session() -> None:
-    """Restore user_id/email from URL token on page refresh if session_state is empty."""
+_COOKIE_NAME = "pycraft_session"
+
+
+def _get_cookie_manager() -> stx.CookieManager:
+    return stx.CookieManager(key="pycraft_cookie_mgr")
+
+
+def try_restore_session(cookie_manager: stx.CookieManager) -> None:
+    """Restore user_id/email from session cookie on page refresh."""
     if st.session_state.get("user_id"):
         return
-    token = st.query_params.get("t")
+    token = cookie_manager.get(_COOKIE_NAME)
     if not token:
         return
     user = get_user_by_token(token)
@@ -402,10 +430,10 @@ def try_restore_session() -> None:
         st.session_state.user_id = user["id"]
         st.session_state.user_email = user["email"]
     else:
-        del st.query_params["t"]
+        cookie_manager.delete(_COOKIE_NAME, key="del_stale_cookie")
 
 
-def render_header() -> None:
+def render_header(cookie_manager: stx.CookieManager) -> None:
     col_title, col_logout = st.columns([7, 1])
     with col_title:
         st.markdown(
@@ -418,10 +446,10 @@ def render_header() -> None:
         st.markdown('<div class="logout-btn">', unsafe_allow_html=True)
         if st.button("Logout", key="logout_btn"):
             log.info("user logged out: user_id=%s", st.session_state.get("user_id"))
-            token = st.query_params.get("t")
+            token = cookie_manager.get(_COOKIE_NAME)
             if token:
                 delete_auth_token(token)
-                del st.query_params["t"]
+                cookie_manager.delete(_COOKIE_NAME, key="del_session_logout")
             st.session_state.clear()
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -461,28 +489,26 @@ def render_progress(stats: list[dict]) -> None:
 
 def render_topic_picker() -> None:
     current = st.session_state.get("topic", "lists")
+    all_options = TOPICS + [""]
+    labels = {t: f"{TOPIC_ICONS.get(t, '')} {t}" for t in TOPICS}
+    labels[""] = "🎲 Random"
+    idx = TOPICS.index(current) if current in TOPICS else len(TOPICS)
     st.markdown(
-        "<p style='text-align:center;color:#64748b;font-size:0.85rem;margin-bottom:0.5rem;'>Choose a topic:</p>",
+        "<p style='text-align:center;color:#475569;font-size:0.75rem;letter-spacing:0.07em;"
+        "text-transform:uppercase;font-weight:6001;margin-bottom:0.5rem;'>Choose a topic</p>",
         unsafe_allow_html=True,
     )
-    cols = st.columns(len(TOPICS) + 1)
-    for i, topic in enumerate(TOPICS):
-        with cols[i]:
-            if current == topic:
-                st.markdown('<div class="pill-selected">', unsafe_allow_html=True)
-            if st.button(f"{TOPIC_ICONS.get(topic, '')} {topic}", key=f"pill_{topic}", use_container_width=True):
-                st.session_state.topic = topic
-                st.rerun()
-            if current == topic:
-                st.markdown("</div>", unsafe_allow_html=True)
-    with cols[-1]:
-        if current == "":
-            st.markdown('<div class="pill-selected">', unsafe_allow_html=True)
-        if st.button("🎲 Random", key="pill_random", use_container_width=True):
-            st.session_state.topic = ""
-            st.rerun()
-        if current == "":
-            st.markdown("</div>", unsafe_allow_html=True)
+    selected = st.radio(
+        "topic",
+        options=all_options,
+        format_func=lambda t: labels[t],
+        index=idx,
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    if selected != current:
+        st.session_state.topic = selected
+        st.rerun()
 
 
 def render_start_screen() -> None:
@@ -553,7 +579,16 @@ def render_result() -> None:
 def main() -> None:
     inject_css()
     init_db()
-    try_restore_session()
+
+    cookie_manager = _get_cookie_manager()
+
+    # Commit pending login token to cookie (set by auth.py after rerun)
+    pending = st.session_state.pop("_pending_token", None)
+    if pending:
+        expires = datetime.now() + timedelta(days=30)
+        cookie_manager.set(_COOKIE_NAME, pending, expires_at=expires, key="set_session_cookie")
+
+    try_restore_session(cookie_manager)
 
     if not st.session_state.get("user_id"):
         login_ui()
@@ -564,7 +599,7 @@ def main() -> None:
         st.session_state["_logged_in_logged"] = True
 
     init_session()
-    render_header()
+    render_header(cookie_manager)
 
     user_id = st.session_state.user_id
     stats = asyncio.run(get_all_topic_stats(user_id=user_id))

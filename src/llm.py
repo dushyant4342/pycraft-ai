@@ -11,9 +11,18 @@ TOPICS = ["strings", "lists", "dicts", "functions", "OOP", "comprehensions", "as
 _client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 
-async def next_question(topic: str, difficulty: int, history: list[int]) -> dict:
+async def next_question(
+    topic: str,
+    difficulty: int,
+    history: list[int],
+    past_questions: list[str] | None = None,
+) -> dict:
     """Return {question, topic, difficulty} for the next practice prompt."""
     history_note = f"Recent scores: {history}." if history else "No prior scores."
+    avoid_block = ""
+    if past_questions:
+        bullets = "\n".join(f"- {q[:120]}" for q in past_questions)
+        avoid_block = f"\n\nDo NOT repeat or closely resemble any of these previously asked questions:\n{bullets}"
 
     response = await _client.chat.completions.create(
         model=MODEL,
@@ -33,7 +42,7 @@ async def next_question(topic: str, difficulty: int, history: list[int]) -> dict
                 "content": (
                     f"Topic: {topic}. Difficulty: {difficulty}/5. {history_note} "
                     "Generate one coding question appropriate for this level. "
-                    "Do not include the solution."
+                    f"Do not include the solution.{avoid_block}"
                 ),
             },
         ],
