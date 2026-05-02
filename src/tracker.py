@@ -1,7 +1,7 @@
 import asyncio
 import secrets
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent.parent / "pycraft.db"
@@ -248,7 +248,11 @@ async def get_all_topic_stats(user_id: int | None = None) -> list[dict]:
 
 
 def _fetch_session_history(
-    user_id: int, topic: str | None = None, limit: int = 50
+    user_id: int,
+    topic: str | None = None,
+    limit: int = 50,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> list[dict]:
     query = """
         SELECT id, timestamp, topic, difficulty, score, code, feedback, question
@@ -259,6 +263,12 @@ def _fetch_session_history(
     if topic:
         query += " AND topic = ?"
         params.append(topic)
+    if start_date:
+        query += " AND DATE(timestamp) >= ?"
+        params.append(start_date.isoformat())
+    if end_date:
+        query += " AND DATE(timestamp) <= ?"
+        params.append(end_date.isoformat())
     query += " ORDER BY id DESC LIMIT ?"
     params.append(limit)
     with _connect() as conn:
@@ -273,7 +283,13 @@ def _fetch_session_history(
 
 
 async def get_session_history(
-    user_id: int, topic: str | None = None, limit: int = 50
+    user_id: int,
+    topic: str | None = None,
+    limit: int = 50,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> list[dict]:
-    """Return up to `limit` past sessions for a user, newest first. Filter by topic if given."""
-    return await asyncio.to_thread(_fetch_session_history, user_id, topic, limit)
+    """Return up to `limit` past sessions for a user, newest first. Filter by topic and date range if given."""
+    return await asyncio.to_thread(
+        _fetch_session_history, user_id, topic, limit, start_date, end_date
+    )

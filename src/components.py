@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date, timedelta
 
 import streamlit as st
 from streamlit_ace import st_ace
@@ -232,6 +233,17 @@ def render_history_tab() -> None:
         unsafe_allow_html=True,
     )
 
+    today = date.today()
+    col_from, col_to = st.columns([1, 1])
+    with col_from:
+        start_date = st.date_input("From", value=today - timedelta(days=30), key="history_start_date")
+    with col_to:
+        end_date = st.date_input("To", value=today, key="history_end_date")
+
+    if start_date > end_date:
+        st.warning("Start date must be before end date.")
+        return
+
     topic_options = ["All"] + TOPICS
     selected_filter = st.selectbox(
         "Filter by topic",
@@ -242,9 +254,12 @@ def render_history_tab() -> None:
     )
     selected_topic = None if selected_filter == "All" else selected_filter
 
-    rows = asyncio.run(get_session_history(user_id, topic=selected_topic, limit=50))
+    rows = asyncio.run(
+        get_session_history(user_id, topic=selected_topic, limit=50,
+                            start_date=start_date, end_date=end_date)
+    )
     if not rows:
-        st.caption("No submissions yet.")
+        st.info("No sessions found for the selected filters.")
         return
 
     st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
