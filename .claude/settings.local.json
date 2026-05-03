@@ -19,7 +19,10 @@
       "Bash(docker exec *)",
       "Bash(python -c \"import ast; ast.parse\\(open\\('src/app.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
       "Bash(.venv\\\\Scripts\\\\python.exe -m pip install pytest pytest-asyncio -q)",
-      "Bash(.venv\\\\Scripts\\\\python.exe -m pytest tests/test_history_date_filter.py -v)"
+      "Bash(.venv\\\\Scripts\\\\python.exe -m pytest tests/test_history_date_filter.py -v)",
+      "mcp__sqlite__list_tables",
+      "mcp__sqlite__read_query",
+      "mcp__sqlite__describe_table"
     ]
   }
 }
