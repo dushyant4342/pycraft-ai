@@ -16,6 +16,15 @@ TOPIC_ICONS = {
     "OOP": "🧩",
     "comprehensions": "🔁",
     "async": "⚡",
+    "linked lists": "🔗",
+    "hash tables": "🗃️",
+    "stacks & queues": "📚",
+    "trees & BST": "🌳",
+    "heaps": "⛰️",
+    "graphs": "🕸️",
+    "sorting algorithms": "🔀",
+    "recursion": "🔄",
+    "dynamic programming": "🧠",
 }
 
 DIFF_LABELS = {1: "Beginner", 2: "Easy", 3: "Medium", 4: "Hard", 5: "Expert"}
@@ -188,6 +197,13 @@ def render_topic_picker() -> None:
     if selected != current:
         st.session_state.topic = selected
         st.rerun()
+    st.text_input(
+        "custom_topic",
+        placeholder="or type a custom topic (e.g. Linked Lists, Binary Search)...",
+        key="custom_topic",
+        label_visibility="collapsed",
+        max_chars=60,
+    )
 
 
 def render_difficulty_picker(topic: str) -> None:
@@ -205,13 +221,15 @@ def render_difficulty_picker(topic: str) -> None:
         "text-transform:uppercase;font-weight:600;margin:0.75rem 0;'>Difficulty</p>",
         unsafe_allow_html=True,
     )
-    chosen = st.select_slider(
-        "difficulty_picker",
-        options=[1, 2, 3, 4, 5],
-        value=default,
-        format_func=lambda v: f"{v} - {DIFF_LABELS[v]}",
-        label_visibility="collapsed",
-    )
+    _, mid_col, _ = st.columns([1, 2, 1])
+    with mid_col:
+        chosen = st.select_slider(
+            "difficulty_picker",
+            options=[1, 2, 3, 4, 5],
+            value=default,
+            format_func=lambda v: f"{v} - {DIFF_LABELS[v]}",
+            label_visibility="collapsed",
+        )
     color = diff_colors.get(chosen, "#7c6af7")
     st.markdown(
         f"<p style='text-align:center;color:{color};font-family:\"JetBrains Mono\",monospace;"
