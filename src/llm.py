@@ -6,7 +6,19 @@ from openai import AsyncOpenAI
 load_dotenv()
 
 MODEL = "gpt-4o-mini"
-TOPICS = ["strings", "lists", "dicts", "functions", "OOP", "comprehensions", "async"]
+TOPICS = [
+    "strings", "lists", "dicts", "functions", "OOP", "comprehensions", "async",
+    "linked lists", "hash tables", "stacks & queues", "trees & BST", "heaps",
+    "graphs", "sorting algorithms", "recursion", "dynamic programming",
+]
+
+_DIFF_DESCRIPTORS = {
+    1: "trivial: single concept, no edge cases, solution under 10 lines",
+    2: "easy: 1-2 concepts, one basic edge case, 10-20 lines",
+    3: "medium: multiple concepts, must handle edge cases, requires algorithmic thinking",
+    4: "hard: requires an optimised algorithm (e.g. O(n log n) or better), non-trivial logic, state expected time complexity",
+    5: "expert: advanced data structures or algorithms, time+space complexity analysis required, production-level constraints",
+}
 
 _client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
@@ -32,16 +44,16 @@ async def next_question(
             {
                 "role": "system",
                 "content": (
-                    "You are a Python coding tutor. Generate a single focused Python practice question with sample input & output. "
+                    "You are a Python coding tutor. Generate a single focused Python or CS practice question with sample input & output. "
                     "Respond with JSON only: {\"question\": \"...\", \"topic\": \"...\", \"difficulty\": <int 1-5>}. "
-                    f"Valid topics: {TOPICS}."
+                    "The topic may be any Python or CS concept."
                 ),
             },
             {
                 "role": "user",
                 "content": (
-                    f"Topic: {topic}. Difficulty: {difficulty}/5. {history_note} "
-                    "Generate one coding question appropriate for this level. "
+                    f"Topic: [{topic}]. Difficulty: {difficulty}/5 ({_DIFF_DESCRIPTORS[difficulty]}). {history_note} "
+                    "Generate one coding question exactly matching this difficulty level. "
                     f"Do not include the solution.{avoid_block}"
                 ),
             },
